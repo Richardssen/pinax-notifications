@@ -169,19 +169,16 @@ class LockBase:
         >>> lock = LockBase("somefile", threaded=False)
         """
         self.path = path
-        self.lock_file = os.path.abspath(path) + ".lock"
+        self.lock_file = f"{os.path.abspath(path)}.lock"
         self.hostname = socket.gethostname()
         self.pid = os.getpid()
         if threaded:
             name = threading.current_thread().get_name()
-            tname = "%s-" % quote(name, safe="")
+            tname = f'{quote(name, safe="")}-'
         else:
             tname = ""
         dirname = os.path.dirname(self.lock_file)
-        self.unique_name = os.path.join(dirname,
-                                        "%s.%s%s" % (self.hostname,
-                                                     tname,
-                                                     self.pid))
+        self.unique_name = os.path.join(dirname, f"{self.hostname}.{tname}{self.pid}")
 
     def acquire(self, timeout=None):
         """
@@ -246,7 +243,7 @@ class LinkFileLock(LockBase):
         try:
             open(self.unique_name, "wb").close()
         except IOError:
-            raise LockFailed("failed to create %s" % self.unique_name)
+            raise LockFailed(f"failed to create {self.unique_name}")
 
         end_time = time.time()
         if timeout is not None and timeout > 0:
@@ -263,15 +260,14 @@ class LinkFileLock(LockBase):
                     # The original link plus the one I created == 2.  We"re
                     # good to go.
                     return
-                else:
-                    # Otherwise the lock creation failed.
-                    if timeout is not None and time.time() > end_time:
-                        os.unlink(self.unique_name)
-                        if timeout > 0:
-                            raise LockTimeout
-                        else:
-                            raise AlreadyLocked
-                    time.sleep(timeout is not None and (timeout / 10) or 0.1)
+                # Otherwise the lock creation failed.
+                if timeout is not None and time.time() > end_time:
+                    os.unlink(self.unique_name)
+                    if timeout > 0:
+                        raise LockTimeout
+                    else:
+                        raise AlreadyLocked
+                time.sleep(timeout is not None and (timeout / 10) or 0.1)
             else:
                 # Link creation succeeded.  We"re good to go.
                 return
@@ -305,15 +301,11 @@ class MkdirFileLock(LockBase):
         >>> lock = MkdirFileLock("somefile", threaded=False)
         """
         LockBase.__init__(self, path, threaded)
-        if threaded:
-            tname = "%x-" % get_ident()
-        else:
-            tname = ""
+        tname = "%x-" % get_ident() if threaded else ""
         # Lock file itself is a directory.  Place the unique file name into
         # it.
         self.unique_name = os.path.join(
-            self.lock_file,
-            "{}.{}{}".format(self.hostname, tname, self.pid)
+            self.lock_file, f"{self.hostname}.{tname}{self.pid}"
         )
 
     def attempt_acquire(self, timeout, end_time, wait):
@@ -321,21 +313,20 @@ class MkdirFileLock(LockBase):
             os.mkdir(self.lock_file)
         except OSError:
             err = sys.exc_info()[1]
-            if err.errno == errno.EEXIST:
-                # Already locked.
-                if os.path.exists(self.unique_name):
-                    # Already locked by me.
-                    return
-                if timeout is not None and time.time() > end_time:
-                    if timeout > 0:
-                        raise LockTimeout
-                    else:
-                        # Someone else has the lock.
-                        raise AlreadyLocked
-                time.sleep(wait)
-            else:
+            if err.errno != errno.EEXIST:
                 # Couldn"t create the lock for some other reason
-                raise LockFailed("failed to create %s" % self.lock_file)
+                raise LockFailed(f"failed to create {self.lock_file}")
+            # Already locked.
+            if os.path.exists(self.unique_name):
+                # Already locked by me.
+                return
+            if timeout is not None and time.time() > end_time:
+                if timeout > 0:
+                    raise LockTimeout
+                else:
+                    # Someone else has the lock.
+                    raise AlreadyLocked
+            time.sleep(wait)
         else:
             open(self.unique_name, "wb").close()
             return
@@ -345,11 +336,7 @@ class MkdirFileLock(LockBase):
         if timeout is not None and timeout > 0:
             end_time += timeout
 
-        if timeout is None:
-            wait = 0.1
-        else:
-            wait = max(0, timeout / 10)
-
+        wait = 0.1 if timeout is None else max(0, timeout / 10)
         while True:
             self.attempt_acquire(self, timeout, end_time, wait)
 
@@ -440,9 +427,8 @@ class SQLiteFileLock(LockBase):
         if self.is_locked():
             if self.i_am_the_only_lock(cursor):
                 return
-        else:
-            if self.create_lock(cursor):
-                return
+        elif self.create_lock(cursor):
+            return
 
         # Maybe we should wait a bit longer.
         if timeout is not None and time.time() > end_time:
@@ -516,7 +502,4 @@ class SQLiteFileLock(LockBase):
 
 
 # pylint: disable-msg=C0103
-if hasattr(os, "link"):
-    FileLock = LinkFileLock
-else:
-    FileLock = MkdirFileLock
+FileLock = LinkFileLock if hasattr(os, "link") else MkdirFileLock

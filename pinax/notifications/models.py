@@ -62,11 +62,11 @@ class NoticeType(models.Model):
             if updated:
                 notice_type.save()
                 if verbosity > 1:
-                    print("Updated %s NoticeType" % label)
+                    print(f"Updated {label} NoticeType")
         except cls.DoesNotExist:
             cls(label=label, display=display, description=description, default=default).save()
             if verbosity > 1:
-                print("Created %s NoticeType" % label)
+                print(f"Created {label} NoticeType")
 
 
 class NoticeSetting(models.Model):
@@ -187,15 +187,15 @@ def send(*args, **kwargs):
     queue_flag = kwargs.pop("queue", False)
     now_flag = kwargs.pop("now", False)
     assert not (queue_flag and now_flag), "'queue' and 'now' cannot both be True."
-    if queue_flag:
+    if (
+        not queue_flag
+        and not now_flag
+        and settings.PINAX_NOTIFICATIONS_QUEUE_ALL
+        or queue_flag
+    ):
         return queue(*args, **kwargs)
-    elif now_flag:
-        return send_now(*args, **kwargs)
     else:
-        if settings.PINAX_NOTIFICATIONS_QUEUE_ALL:
-            return queue(*args, **kwargs)
-        else:
-            return send_now(*args, **kwargs)
+        return send_now(*args, **kwargs)
 
 
 def queue(users, label, extra_context=None, sender=None):
@@ -210,9 +210,7 @@ def queue(users, label, extra_context=None, sender=None):
         users = [row["pk"] for row in users.values("pk")]
     else:
         users = [user.pk for user in users]
-    notices = []
-    for user in users:
-        notices.append((user, label, extra_context, sender))
+    notices = [(user, label, extra_context, sender) for user in users]
     # After b64 encoding, bytestring must be converted to string via `decode()`
     # for use in Django 2.0+ TextField.
     pickled_data = base64.b64encode(pickle.dumps(notices)).decode()

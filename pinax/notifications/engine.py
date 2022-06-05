@@ -17,11 +17,7 @@ from .signals import emitted_notices
 
 
 def acquire_lock(*args):
-    if len(args) == 1:
-        lock = FileLock(args[0])
-    else:
-        lock = FileLock("send_notices")
-
+    lock = FileLock(args[0]) if len(args) == 1 else FileLock("send_notices")
     logging.debug("acquiring lock...")
     try:
         lock.acquire(settings.PINAX_NOTIFICATIONS_LOCK_WAIT_TIMEOUT)

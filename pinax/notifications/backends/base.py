@@ -32,12 +32,16 @@ class BaseBackend(object):
         Returns a dictionary with the format identifier as the key. The values are
         are fully rendered templates with the given context.
         """
-        format_templates = {}
-        for fmt in formats:
-            format_templates[fmt] = render_to_string((
-                "pinax/notifications/{0}/{1}".format(label, fmt),
-                "pinax/notifications/{0}".format(fmt)), context)
-        return format_templates
+        return {
+            fmt: render_to_string(
+                (
+                    "pinax/notifications/{0}/{1}".format(label, fmt),
+                    "pinax/notifications/{0}".format(fmt),
+                ),
+                context,
+            )
+            for fmt in formats
+        }
 
     def default_context(self):
         use_ssl = getattr(settings, "PINAX_USE_SSL", False)

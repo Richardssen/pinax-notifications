@@ -37,10 +37,7 @@ class NoticeSettingsView(TemplateView):
         _, pk, medium_id = label.split("-")
         notice_type = NoticeType.objects.get(pk=pk)
         setting = self.setting_for_user(notice_type, medium_id)
-        if val == "on":
-            setting.send = True
-        else:
-            setting.send = False
+        setting.send = val == "on"
         setting.save()
 
     def settings_table(self):
